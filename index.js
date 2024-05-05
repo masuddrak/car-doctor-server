@@ -7,34 +7,18 @@ const app = express()
 const port = process.env.PORT || 5000
 
 // midelware
-app.use(cors({
+const corsOptions = {
     origin: ['http://localhost:5173'],
     credentials: true,
+    optionSuccessStatus: 200,
+}
+app.use(cors(corsOptions))
 
-}))
 app.use(express.json())
 app.use(cookieParser())
 
-const logger=async(req,res,next)=>{
-next()
-}
-const verifyTokenJwt=async(req,res,next)=>{
-    const token=req.cookies.cokkieToken
-    let randomNumber = process.env.ACCE_TOKEN
-    console.log("client token",token)
-    if(!token){
-        res.status(403).send({message:"not Authorization user"})
-    }
-    jwt.verify(token, randomNumber, function(err, decoded) {
-        if(err){
-            return res.status(403).send({message:"not Authorization user"})
-        }
-        console.log("hello",decoded) // bar
-        req.user=decoded
-        next()
-      });
-    
-}
+
+
 
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -48,22 +32,42 @@ const client = new MongoClient(uri, {
         deprecationErrors: true,
     }
 });
+// verify token
+const verifyToken = (req, res, next) => {
+    const tokenGet = req?.cookies?.MyToken
+    if (!tokenGet) {
+        return res.status(401).send("unAuthorize access")
+    }
+    jwt.verify(tokenGet, process.env.ACCE_TOKEN, (err, decoded) => {
+        if (err) {
+            return res.status(401).send("unAuthorize access")
+        }
+        req.user = decoded
+        next()
+    });
+    console.log(tokenGet)
 
+}
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-       
+
         const servicesCollection = client.db("Doctor").collection("services")
         const checkoutCollection = client.db("Doctor").collection("checkout")
-        // jwt token create
-        app.post("/createtoken", async (req, res) => {
+        // create json web token
+        app.post("/jwt", async (req, res) => {
             const user = req.body
-            let randomNumber = process.env.ACCE_TOKEN
-            const token = await jwt.sign(user, randomNumber, { expiresIn: '1h' });
-            res.cookie('cokkieToken', token, { httpOnly: true, secure: true })
-            res.send("success")
-            console.log(user)
+            // console.log("jwt user", user)
+            const token = jwt.sign(user, process.env.ACCE_TOKEN, { expiresIn: '5h' });
+            res.cookie("MyToken", token, { httpOnly: true, secure: true, sameSite: "none" })
+                .send({ success: true })
         })
+        app.post("/logout", async (req, res) => {
+            const user = req.body
+            res.clearCookie("MyToken", { maxAge: 0 }).send({ success: true })
+            // console.log("logut user", user)
+        })
+
         // /services
         app.get("/services", async (req, res) => {
             const cursor = servicesCollection.find();
@@ -85,7 +89,6 @@ async function run() {
             const items = req.body
             const result = await checkoutCollection.insertOne(items);
             res.send(result)
-            console.log(items)
         })
         app.get("/checkout", async (req, res) => {
             const query = checkoutCollection.find()
@@ -93,10 +96,11 @@ async function run() {
             res.send(result)
 
         })
-        app.get("/checkoutEmail",verifyTokenJwt, async (req, res) => {
-            console.log(req.cookies.cokkieToken,req.user)
-            if(req.query.email !==req.user.email){
-                return res.status(403).send({message:"not Authorization user"})
+        app.get("/checkoutEmail", verifyToken, async (req, res) => {
+            // console.log("reques user", req.query)
+            // console.log("token reques user", req.user)
+            if(req.query.email !== req.user.email){
+                return res.status(403).send("forbidden...")
             }
             let query = {}
             if (req.query?.email) {
@@ -114,7 +118,6 @@ async function run() {
         app.patch("/checkout/:id", async (req, res) => {
             const deleteItem = req.params.id
             const updateReq = req.body
-            console.log(updateReq)
             const query = { _id: new ObjectId(deleteItem) }
             const updateDoc = {
                 $set: {
