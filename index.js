@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser')
 const jwt = require("jsonwebtoken")
 const app = express()
 const port = process.env.PORT || 5000
+const multer  = require('multer')
 
 // midelware
 const corsOptions = {
@@ -16,10 +17,18 @@ app.use(cors(corsOptions))
 
 app.use(express.json())
 app.use(cookieParser())
+// multer code
 
-
-
-
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, 'uploads/')
+    },
+    filename: function (req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+      cb(null, file.fieldname + '-' + uniqueSuffix)
+    }
+  })
+  const upload = multer({ storage: storage })
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.kaocfbi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -58,7 +67,7 @@ async function run() {
         app.post("/jwt", async (req, res) => {
             const user = req.body
             // console.log("jwt user", user)
-            const token = jwt.sign(user, process.env.ACCE_TOKEN, { expiresIn: '5h' });
+            const token = jwt.sign(user, process.env.ACCE_TOKEN, { expiresIn: '1h' });
             res.cookie("MyToken", token, { httpOnly: true, secure: true, sameSite: "none" })
                 .send({ success: true })
         })
@@ -70,7 +79,17 @@ async function run() {
 
         // /services
         app.get("/services", async (req, res) => {
-            const cursor = servicesCollection.find();
+            const filter=req.query
+            console.log(filter)
+            const query={
+                price:{$lt:50}
+            }
+            const options={
+                sort:{
+                    price:filter.act==="acending"?1:-1
+                }
+            }
+            const cursor = servicesCollection.find(query,options);
             const result = await cursor.toArray();
             res.send(result)
         })
