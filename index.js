@@ -5,7 +5,7 @@ const cookieParser = require('cookie-parser')
 const jwt = require("jsonwebtoken")
 const app = express()
 const port = process.env.PORT || 5000
-const multer  = require('multer')
+const multer = require('multer')
 
 // midelware
 const corsOptions = {
@@ -21,14 +21,14 @@ app.use(cookieParser())
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-      cb(null, 'uploads/')
+        cb(null, 'uploads/')
     },
     filename: function (req, file, cb) {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-      cb(null, file.fieldname + '-' + uniqueSuffix)
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        cb(null, file.fieldname + '-' + uniqueSuffix)
     }
-  })
-  const upload = multer({ storage: storage })
+})
+const upload = multer({ storage: storage })
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.kaocfbi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -79,17 +79,20 @@ async function run() {
 
         // /services
         app.get("/services", async (req, res) => {
-            const filter=req.query
+            const filter = req.query
             console.log(filter)
-            const query={
-                price:{$lt:50}
-            }
-            const options={
-                sort:{
-                    price:filter.act==="acending"?1:-1
+            const query = {
+                title: {
+                    $regex: filter.search,
+                    $options: "i"
                 }
             }
-            const cursor = servicesCollection.find(query,options);
+            const options = {
+                sort: {
+                    price: filter.act === "acending" ? 1 : -1
+                }
+            }
+            const cursor = servicesCollection.find(query, options);
             const result = await cursor.toArray();
             res.send(result)
         })
@@ -118,7 +121,7 @@ async function run() {
         app.get("/checkoutEmail", verifyToken, async (req, res) => {
             // console.log("reques user", req.query)
             // console.log("token reques user", req.user)
-            if(req.query.email !== req.user.email){
+            if (req.query.email !== req.user.email) {
                 return res.status(403).send("forbidden...")
             }
             let query = {}
